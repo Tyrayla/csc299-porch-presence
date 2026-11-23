@@ -15,6 +15,7 @@ CAPTURE_DIR = Path(os.environ.get("CAPTURE_DIR", DATA_DIR / "captures"))
 REFERENCE_IMAGE = Path(os.environ.get("REFERENCE_IMAGE", CAPTURE_DIR / "empty_porch.jpg"))
 MAX_SAVED_CAPTURES = int(os.environ.get("MAX_SAVED_CAPTURES", "25"))
 CALIBRATION_FILE = DATA_DIR / "stepper_calibration.json"
+CAMERA_SETTINGS_FILE = CAPTURE_DIR / "camera_settings.json"
 
 # Keep this order matched to ULN2003 IN1, IN2, IN3, IN4.
 MOTOR_GPIO_PINS = (17, 18, 27, 22)
@@ -39,6 +40,24 @@ def get_steps_to_porch() -> int:
             f"No valid porch_steps value in {CALIBRATION_FILE}. "
             "Run `python3 -m src.stepper_setup` and mark the porch position."
         ) from exc
+
+
+def get_camera_rotation() -> int:
+    """Return a saved clockwise rotation in degrees (0, 90, 180, or 270)."""
+    override = os.environ.get("CAMERA_ROTATION_DEGREES")
+    if override is not None:
+        rotation = int(override)
+    elif CAMERA_SETTINGS_FILE.is_file():
+        try:
+            data = json.loads(CAMERA_SETTINGS_FILE.read_text(encoding="utf-8"))
+            rotation = int(data.get("rotation_degrees", 0))
+        except (OSError, json.JSONDecodeError, AttributeError, TypeError, ValueError) as exc:
+            raise RuntimeError(f"Could not read camera rotation setting: {exc}") from exc
+    else:
+        rotation = 0
+    if rotation not in (0, 90, 180, 270):
+        raise ValueError("Camera rotation must be 0, 90, 180, or 270 degrees clockwise.")
+    return rotation
 
 CAMERA_SIZE = (640, 480)
 CAMERA_FPS = 8

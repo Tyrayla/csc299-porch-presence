@@ -66,7 +66,7 @@ Launch the combined command-line program:
 python3 -m src.porch_watch
 ```
 
-Choose stepper calibration from the menu. Direct mode commands are also available: `--setup`, `--reference`, and `--run`.
+The menu lets you calibrate the stepper, set camera image rotation, capture the empty-porch reference, and start monitoring. Direct mode commands are also available: `--setup`, `--rotation`, `--reference`, and `--run`.
 
 Use these commands at the `stepper>` prompt:
 
@@ -85,6 +85,16 @@ q          quit and release the coils
 Use small jogs at first and keep the mount clear of hard stops. Adjust the porch angle with more positive or negative jogs before pressing `p`. The saved travel value is stored locally in the git-ignored file `data/stepper_calibration.json` and used by the detector and reference capture command. Re-run setup any time the mount angles change.
 
 The motor cannot report its actual angle. When starting after power-off or manually moving the mount, run `--setup`, jog until the camera physically points at standby, press `s`, then use `v` and `b` to confirm the saved path and leave it at standby before quitting. Do not rely on a saved step count to identify the physical position after power was removed.
+
+## Set the camera image rotation
+
+If photos appear sideways or upside down, choose **Set camera image rotation** in the combined menu, or run:
+
+```bash
+python3 -m src.porch_watch --rotation
+```
+
+Enter `0`, `90`, `180`, or `270` degrees clockwise. For an upside-down camera, use `180`. The setting is saved locally in `data/captures/camera_settings.json` and is applied to the live motion frames, event photos, and reference photo. After changing rotation, recapture the empty-porch reference so it has the same orientation as later photos.
 
 ## Capture the empty-porch reference
 
@@ -105,7 +115,7 @@ From the repository root on the Pi:
 python3 -m src.porch_watch --run
 ```
 
-Stop with `Ctrl+C`. Event images are saved with readable names such as `porch_2026-11-23_15-42-08.jpg` in `data/captures/`. The program prints a message immediately before and after saving each image. By default, it keeps the newest 25 event photos and removes older ones. Change the limit for a session with `export MAX_SAVED_CAPTURES=50` before starting the monitor. Set it to `0` to keep all captures.
+Stop with `Ctrl+C`. Every confirmed motion event saves an image with a readable name such as `porch_2026-11-23_15-42-08.jpg` in `data/captures/`, even when the scene-change score is below the alert threshold. The program prints the score and whether it crossed the alert threshold; only above-threshold events produce an alert (and optional SMS). By default, it keeps the newest 25 event photos and removes older ones. Change the limit for a session with `export MAX_SAVED_CAPTURES=50` before starting the monitor. Set it to `0` to keep all captures.
 
 ## Calibrate
 
@@ -121,7 +131,7 @@ python3 -m src.porch_watch --run
 - If it triggers from minor image noise, raise it (for example, `0.04`) or increase `MOTION_CONFIRM_FRAMES`.
 - If normal lighting changes cause alerts, raise `SCENE_CHANGE_THRESHOLD`. If packages are missed in tests, lower it.
 - Override the saved motor travel for one run with `export STEPS_TO_PORCH=256`; adjust the angle more safely through `python3 -m src.porch_watch --setup`.
-- Retake `data/captures/empty_porch.jpg` if the camera angle or porch layout changes.
+- Retake `data/captures/empty_porch.jpg` if the camera angle, image rotation, or porch layout changes.
 
 ## Optional SMS
 
@@ -160,4 +170,4 @@ Replace the example phone numbers with numbers supported by your Twilio account.
 
 - Aim the camera only at the test porch area and avoid capturing neighbors or public space.
 - Do not commit captured images, API credentials, or phone numbers.
-- The program currently stores one baseline and one latest event image locally.
+- The program stores the baseline, camera rotation setting, and recent event images locally.

@@ -5,7 +5,14 @@ import time
 import cv2
 from picamera2 import Picamera2
 
-from .settings import CAMERA_SETTLE_SECONDS, CAMERA_SIZE, REFERENCE_IMAGE, get_steps_to_porch
+from .camera_view import rotate_frame
+from .settings import (
+    CAMERA_SETTLE_SECONDS,
+    CAMERA_SIZE,
+    REFERENCE_IMAGE,
+    get_camera_rotation,
+    get_steps_to_porch,
+)
 from .stepper import Stepper
 
 
@@ -17,6 +24,7 @@ def main() -> None:
         return
 
     steps_to_porch = get_steps_to_porch()
+    rotation_degrees = get_camera_rotation()
     camera = Picamera2()
     camera.configure(camera.create_still_configuration(main={"size": CAMERA_SIZE, "format": "RGB888"}))
     stepper = Stepper()
@@ -27,7 +35,7 @@ def main() -> None:
         stepper.move(steps_to_porch)
         moved = True
         time.sleep(CAMERA_SETTLE_SECONDS)
-        frame = camera.capture_array()
+        frame = rotate_frame(camera.capture_array(), rotation_degrees)
         REFERENCE_IMAGE.parent.mkdir(parents=True, exist_ok=True)
         # Picamera2's RGB888 array is BGR-ordered for OpenCV's image writer.
         if not cv2.imwrite(str(REFERENCE_IMAGE), frame):

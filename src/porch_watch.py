@@ -12,6 +12,7 @@ import time
 import cv2
 from picamera2 import Picamera2
 
+from .camera_view import rotate_frame
 from .notifications import send_alert
 from .settings import (
     CAMERA_FPS,
@@ -26,6 +27,7 @@ from .settings import (
     MOTION_PIXEL_THRESHOLD,
     REFERENCE_IMAGE,
     SCENE_CHANGE_THRESHOLD,
+    get_camera_rotation,
     get_steps_to_porch,
 )
 from .stepper import Stepper
@@ -59,10 +61,10 @@ def scene_difference(reference_path: Path, capture_path: Path) -> float:
     return float(cv2.absdiff(reference, capture).mean())
 
 
-def capture_jpeg(camera: Picamera2, path: Path) -> None:
+def capture_jpeg(camera: Picamera2, path: Path, rotation_degrees: int) -> None:
     """Capture the current camera view to a JPEG file."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    frame = camera.capture_array("main")
+    frame = rotate_frame(camera.capture_array("main"), rotation_degrees)
     # For a Picamera2 RGB888 stream, the returned array is already BGR-ordered
     # for OpenCV's image writer, so don't swap the red and blue channels.
     if not cv2.imwrite(str(path), frame):
@@ -93,7 +95,12 @@ def next_capture_path() -> Path:
     return candidate
 
 
-def handle_event(camera: Picamera2, stepper: Stepper, steps_to_porch: int) -> None:
+def handle_event(
+    camera: Picamera2,
+    stepper: Stepper,
+    steps_to_porch: int,
+    rotation_degrees: int,
+) -> None:
     print("Motion confirmed. Moving to porch view...")
     moved = False
     try:
@@ -103,7 +110,7 @@ def handle_event(camera: Picamera2, stepper: Stepper, steps_to_porch: int) -> No
         CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
         capture_path = next_capture_path()
         print(f"Capturing porch photo: {capture_path.name}", flush=True)
-        capture_jpeg(camera, capture_path)
+        capture_jpeg(camera, capture_path, rotation_degrees)
         print(f"Photo saved: {capture_path}", flush=True)
         prune_capture_history()
 
@@ -129,6 +136,7 @@ def handle_event(camera: Picamera2, stepper: Stepper, steps_to_porch: int) -> No
 
 def run_detector() -> None:
     steps_to_porch = get_steps_to_porch()
+    rotation_degrees = get_camera_rotation()
     if not REFERENCE_IMAGE.is_file():
         raise FileNotFoundError(
             f"No empty-porch reference at {REFERENCE_IMAGE}. "
@@ -146,13 +154,16 @@ def run_detector() -> None:
     camera.start()
     time.sleep(2)
 
-    print(f"Porch Presence is watching; saved porch travel is {steps_to_porch} half-steps. Press Ctrl+C to stop.")
+    print(
+        f"Porch Presence is watching; porch travel is {steps_to_porch} half-steps, "
+        f"image rotation is {rotation_degrees} degrees clockwise. Press Ctrl+C to stop."
+    )
     previous = None
     consecutive = 0
     last_event = 0.0
     try:
         while True:
-            frame = camera.capture_array("main")
+            frame = rotate_frame(camera.capture_array("main"), rotation_degrees)
             current = grayscale(frame)
             if previous is not None:
                 fraction = motion_fraction(previous, current)
@@ -165,7 +176,7 @@ def run_detector() -> None:
                 if consecutive >= MOTION_CONFIRM_FRAMES and now - last_event >= EVENT_COOLDOWN_SECONDS:
                     last_event = now
                     consecutive = 0
-                    handle_event(camera, stepper, steps_to_porch)
+                    handle_event(camera, stepper, steps_to_porch, rotation_degrees)
                     # Re-prime the reference frame after the camera returns.
                     previous = None
                     continue
@@ -185,6 +196,7 @@ def main() -> None:
     )
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--setup", action="store_true", help="open stepper angle setup")
+    modes.add_argument("--rotation", action="store_true", help="set camera image rotation")
     modes.add_argument("--reference", action="store_true", help="capture an empty-porch reference")
     modes.add_argument("--run", action="store_true", help="start motion monitoring directly")
     args = parser.parse_args()
@@ -193,6 +205,11 @@ def main() -> None:
         from .stepper_setup import main as setup_stepper
 
         setup_stepper()
+        return
+    if args.rotation:
+        from .camera_setup import main as setup_camera_rotation
+
+        setup_camera_rotation()
         return
     if args.reference:
         from .capture_reference import main as capture_reference
@@ -207,28 +224,33 @@ def main() -> None:
     while True:
         print("\nPorch Presence")
         print("1) Calibrate / jog the stepper")
-        print("2) Capture empty-porch reference photo")
-        print("3) Start motion monitoring")
-        print("4) Quit")
-        choice = input("Choose 1-4: ").strip()
+        print("2) Set camera image rotation")
+        print("3) Capture empty-porch reference photo")
+        print("4) Start motion monitoring")
+        print("5) Quit")
+        choice = input("Choose 1-5: ").strip()
         if choice == "1":
             from .stepper_setup import main as setup_stepper
 
             setup_stepper()
         elif choice == "2":
+            from .camera_setup import main as setup_camera_rotation
+
+            setup_camera_rotation()
+        elif choice == "3":
             from .capture_reference import main as capture_reference
 
             capture_reference()
-        elif choice == "3":
+        elif choice == "4":
             try:
                 run_detector()
             except (FileNotFoundError, RuntimeError) as exc:
                 print(f"Cannot start monitoring yet: {exc}")
-        elif choice == "4":
+        elif choice == "5":
             print("Goodbye.")
             break
         else:
-            print("Enter 1, 2, 3, or 4.")
+            print("Enter 1, 2, 3, 4, or 5.")
 
 
 if __name__ == "__main__":
