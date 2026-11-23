@@ -17,8 +17,9 @@ from .settings import (
     CAMERA_FPS,
     CAMERA_SETTLE_SECONDS,
     CAMERA_SIZE,
-    CAPTURE_IMAGE,
+    CAPTURE_DIR,
     EVENT_COOLDOWN_SECONDS,
+    MAX_SAVED_CAPTURES,
     MOTION_CONFIRM_FRAMES,
     MOTION_FRACTION_THRESHOLD,
     MOTION_FRAME_INTERVAL,
@@ -67,6 +68,18 @@ def capture_jpeg(camera: Picamera2, path: Path) -> None:
         raise OSError(f"Could not save image: {path}")
 
 
+def prune_capture_history() -> None:
+    """Keep only the newest configured number of event photos."""
+    if MAX_SAVED_CAPTURES < 1:
+        return
+    photos = sorted(CAPTURE_DIR.glob("capture_*.jpg"))
+    for old_photo in photos[:-MAX_SAVED_CAPTURES]:
+        try:
+            old_photo.unlink()
+        except OSError as exc:
+            print(f"Could not remove old capture {old_photo}: {exc}")
+
+
 def handle_event(camera: Picamera2, stepper: Stepper, steps_to_porch: int) -> None:
     print("Motion confirmed. Moving to porch view...")
     moved = False
@@ -74,20 +87,24 @@ def handle_event(camera: Picamera2, stepper: Stepper, steps_to_porch: int) -> No
         stepper.move(steps_to_porch)
         moved = True
         time.sleep(CAMERA_SETTLE_SECONDS)
-        capture_jpeg(camera, CAPTURE_IMAGE)
+        CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
+        captured_at = datetime.now()
+        capture_path = CAPTURE_DIR / f"capture_{captured_at.strftime('%Y%m%d_%H%M%S_%f')}.jpg"
+        capture_jpeg(camera, capture_path)
+        prune_capture_history()
 
-        score = scene_difference(REFERENCE_IMAGE, CAPTURE_IMAGE)
+        score = scene_difference(REFERENCE_IMAGE, capture_path)
         changed = score >= SCENE_CHANGE_THRESHOLD
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if changed:
             message = f"Porch activity detected at {stamp}. Scene-change score: {score:.1f}."
             print(message)
-            print(f"Photo saved: {CAPTURE_IMAGE}")
+            print(f"Photo saved: {capture_path}")
             send_alert(message)
         else:
             print(
                 f"Motion at {stamp}, but the porch scene change ({score:.1f}) is below "
-                f"the alert threshold ({SCENE_CHANGE_THRESHOLD:.1f}). Photo saved: {CAPTURE_IMAGE}"
+                f"the alert threshold ({SCENE_CHANGE_THRESHOLD:.1f}). Photo saved: {capture_path}"
             )
     finally:
         if moved:

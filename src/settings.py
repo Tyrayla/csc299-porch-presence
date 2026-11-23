@@ -12,7 +12,8 @@ import os
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 REFERENCE_IMAGE = Path(os.environ.get("REFERENCE_IMAGE", DATA_DIR / "empty_porch.jpg"))
-CAPTURE_IMAGE = Path(os.environ.get("CAPTURE_IMAGE", DATA_DIR / "latest_capture.jpg"))
+CAPTURE_DIR = Path(os.environ.get("CAPTURE_DIR", DATA_DIR / "captures"))
+MAX_SAVED_CAPTURES = int(os.environ.get("MAX_SAVED_CAPTURES", "25"))
 CALIBRATION_FILE = DATA_DIR / "stepper_calibration.json"
 
 # Keep this order matched to ULN2003 IN1, IN2, IN3, IN4.
