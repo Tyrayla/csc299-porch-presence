@@ -1,28 +1,37 @@
-﻿"""Environment-backed hardware settings for the porch detector."""
+"""Configuration for the camera and 28BYJ-48/ULN2003 setup.
 
+GPIO values are BCM numbers. The team's confirmed physical header pins
+11, 12, 13, and 15 correspond to BCM GPIO17, GPIO18, GPIO27, and GPIO22.
+"""
+
+from pathlib import Path
 import os
 
 
-def _required(name: str) -> str:
-    value = os.environ.get(name)
-    if value is None or not value.strip() or value.startswith("<"):
-        raise RuntimeError(f"Set {name} to a confirmed hardware value before running.")
-    return value.strip()
+ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = ROOT / "data"
+REFERENCE_IMAGE = Path(os.environ.get("REFERENCE_IMAGE", DATA_DIR / "empty_porch.jpg"))
+CAPTURE_IMAGE = Path(os.environ.get("CAPTURE_IMAGE", DATA_DIR / "latest_capture.jpg"))
 
+# Keep this order matched to ULN2003 IN1, IN2, IN3, IN4.
+MOTOR_GPIO_PINS = (17, 18, 27, 22)
+STEPS_TO_PORCH = int(os.environ.get("STEPS_TO_PORCH", "256"))
+STEP_DELAY_SECONDS = float(os.environ.get("STEP_DELAY_SECONDS", "0.004"))
 
-def _required_int(name: str) -> int:
-    return int(_required(name))
+CAMERA_SIZE = (640, 480)
+CAMERA_FPS = 8
+CAMERA_SETTLE_SECONDS = float(os.environ.get("CAMERA_SETTLE_SECONDS", "1.5"))
 
+# Tune these after observing the system in its actual lighting.
+MOTION_PIXEL_THRESHOLD = int(os.environ.get("MOTION_PIXEL_THRESHOLD", "25"))
+MOTION_FRACTION_THRESHOLD = float(os.environ.get("MOTION_FRACTION_THRESHOLD", "0.025"))
+MOTION_CONFIRM_FRAMES = int(os.environ.get("MOTION_CONFIRM_FRAMES", "3"))
+MOTION_FRAME_INTERVAL = float(os.environ.get("MOTION_FRAME_INTERVAL", "0.25"))
+EVENT_COOLDOWN_SECONDS = float(os.environ.get("EVENT_COOLDOWN_SECONDS", "15"))
+SCENE_CHANGE_THRESHOLD = float(os.environ.get("SCENE_CHANGE_THRESHOLD", "12.0"))
 
-def _required_float(name: str) -> float:
-    return float(_required(name))
-
-
-PIR_GPIO = _required_int("PIR_GPIO")
-SERVO_GPIO = _required_int("SERVO_GPIO")
-SERVO_IDLE_VALUE = _required_float("SERVO_IDLE_VALUE")
-SERVO_VIEW_VALUE = _required_float("SERVO_VIEW_VALUE")
-CAMERA_SETTLE_SECONDS = float(os.environ.get("CAMERA_SETTLE_SECONDS", "2.0"))
-DIFF_THRESHOLD = float(os.environ.get("DIFF_THRESHOLD", "18.0"))
-REFERENCE_IMAGE = os.environ.get("REFERENCE_IMAGE", "data/empty_porch.jpg")
-CAPTURE_IMAGE = os.environ.get("CAPTURE_IMAGE", "data/latest_capture.jpg")
+# Optional Twilio SMS configuration. Leave unset for console-only alerts.
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
+TWILIO_FROM_NUMBER = os.environ.get("TWILIO_FROM_NUMBER", "")
+ALERT_TO_NUMBER = os.environ.get("ALERT_TO_NUMBER", "")

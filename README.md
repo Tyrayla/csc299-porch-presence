@@ -1,90 +1,137 @@
-﻿# CSC/CSE 299 Porch Presence Project
+# CSC/CSE 299 Porch Presence
 
-Starter code and notes for a Raspberry Pi porch activity detector. The planned system uses a PIR sensor to trigger a camera, compares the captured scene with an empty-porch reference, and sends a text alert if the scene changes. Optional package or food classification is a later stretch goal.
+Camera-based porch activity demo for a Raspberry Pi 4B, Raspberry Pi Camera Rev 1.3, and 28BYJ-48 5V stepper motor with ULN2003 driver.
 
-This repository is a project scaffold. Hardware setup, camera compatibility, GPIO pins, servo angles, and the SMS provider still need to be confirmed on the team's Raspberry Pi. The starter currently prints a local alert; it does not send SMS yet.
+## What it does
 
-## Planned flow
+1. Watches the forward-facing camera view for repeated frame-to-frame changes.
+2. When motion is confirmed, moves the stepper a configured number of half-steps to point the camera toward the porch.
+3. Captures a porch image and compares it with a saved empty-porch reference.
+4. Prints an alert and saves the image when the scene-change score exceeds a threshold. If Twilio is configured, it also sends a text.
+5. Moves the camera back to standby and continues watching.
 
-1. A PIR sensor reports movement.
-2. A servo moves the camera to the porch viewing angle.
-3. The Raspberry Pi captures an image and compares it with a reference image.
-4. If the image difference passes a configurable threshold, the program reports an alert locally.
-5. After the team confirms the SMS provider and stores its credentials locally, the notification function can be connected to that service.
+This first version detects motion and image change. It does **not** identify a person or classify a package/food. Tree movement, lighting changes, and shadows can cause false detections; tune it in the intended location.
 
-The project detects motion and scene changes. Image comparison alone does not identify people or determine that an object is a package or food.
+## Wiring used by the code
 
-## Requirements
+Use BCM GPIO numbering in software. These match the team's confirmed physical header pins:
 
-- Raspberry Pi with Raspberry Pi OS
-- Raspberry Pi Camera Module compatible with the OS camera stack
-- PIR sensor and servo motor
-- Breadboard, jumper wires, and appropriate power/wiring for the servo
-- Network access if SMS notifications are added
+| ULN2003 | Raspberry Pi header | BCM pin used in code |
+| --- | ---: | ---: |
+| IN1 | Physical 11 | GPIO17 |
+| IN2 | Physical 12 | GPIO18 |
+| IN3 | Physical 13 | GPIO27 |
+| IN4 | Physical 15 | GPIO22 |
+| `+` | Physical 2 (5V) | — |
+| `−` | Physical 6 (GND) | — |
 
-Install the Raspberry Pi OS packages on the Pi:
+The camera uses the Pi's CSI camera ribbon connector. Do not power the motor through a GPIO signal pin. For a prototype, power down before changing wiring. If the Pi resets or becomes unstable, use a separate regulated 5V supply for the motor; join its ground to Pi ground.
+
+**Mechanical constraint:** step count is open-loop; there is no position sensor or homing switch. The camera mount must start in the standby position and must not hit a hard stop. Ensure the camera ribbon has enough slack and never twists or snags as the mount moves. Test movement without the camera attached first. If the mechanism cannot move safely with the ribbon attached, use a fixed camera and remove the motor-driven camera movement from the demonstration.
+
+## Install on Raspberry Pi OS
+
+If the repo is already cloned on the Pi, update it first:
 
 ```bash
-sudo apt update
-sudo apt install -y python3-opencv python3-gpiozero python3-picamera2
+cd ~/csc299-porch-presence
+git pull
 ```
 
-Package availability can vary with the Raspberry Pi OS release. Confirm the camera module and OS combination before wiring and running the program.
-
-## Clone and update on the Pi
-
-Clone this repository once:
+If it is not cloned yet:
 
 ```bash
 git clone https://github.com/Tyrayla/csc299-porch-presence.git
 cd csc299-porch-presence
 ```
 
-After pushing changes from the development computer, update the Pi with:
+Then install the system packages:
 
 ```bash
-git pull
+sudo apt update
+sudo apt install -y python3-opencv python3-gpiozero python3-picamera2
 ```
 
-## Configure the hardware
-
-Set these environment variables in the Pi's shell before running the scripts. Replace each placeholder with the BCM pin and angle values confirmed by the team; do not commit real credentials or `.env` files.
+The Pi camera must already be detected by Raspberry Pi OS. Check it with:
 
 ```bash
-export PIR_GPIO='<BCM pin>'
-export SERVO_GPIO='<BCM pin>'
-export SERVO_IDLE_VALUE='<servo value from 0.0 to 1.0>'
-export SERVO_VIEW_VALUE='<servo value from 0.0 to 1.0>'
+rpicam-hello --list-cameras
 ```
 
-Servo positions, wiring, and power requirements depend on the actual motor and mount. Test movement without the camera attached first.
+## Capture the empty-porch reference
 
-## Capture a reference and run
-
-With the camera mounted in its final position and the porch empty, capture a reference image:
+1. Mount the camera and motor safely. Start with the mechanism at the same standby position it will use while watching.
+2. Make sure the porch is empty and lighting is representative.
+3. Run:
 
 ```bash
 python3 -m src.capture_reference
 ```
 
-Then start the detector:
+Confirm with `y`. The motor moves to the porch angle, saves `data/empty_porch.jpg`, then returns to standby. Inspect the reference photo before continuing.
+
+## Run the system
+
+From the repository root on the Pi:
 
 ```bash
 python3 -m src.porch_watch
 ```
 
-The default image-difference threshold is only a starting point. Tune it under the lighting and camera position used for the demonstration. The current notification function prints an alert locally; SMS integration is intentionally pending confirmation of the service/API.
+Stop with `Ctrl+C`. New event images are saved as `data/latest_capture.jpg` (each event overwrites the previous image). To save event history, change `CAPTURE_IMAGE` behavior in `src/porch_watch.py` to include a timestamp.
 
-## Project structure
+## Calibrate
 
-- `src/porch_watch.py` - PIR-triggered camera capture and scene comparison
-- `src/capture_reference.py` - captures the empty-scene reference image
-- `src/settings.py` - reads GPIO and servo settings from environment variables
-- `src/notifications.py` - local alert placeholder for later SMS integration
+The defaults are conservative starting values, not guaranteed settings. Change them for a temporary session by exporting variables before starting the program:
 
-## Safety and privacy notes
+```bash
+export STEPS_TO_PORCH=256
+export MOTION_FRACTION_THRESHOLD=0.025
+export SCENE_CHANGE_THRESHOLD=12.0
+python3 -m src.porch_watch
+```
 
-- Do not commit API keys, phone numbers, passwords, or porch images.
-- Keep the camera pointed only at the intended test area.
-- Check servo power and wiring before attaching the camera mount.
-- If scene comparison is unreliable, the fallback is a general PIR-triggered alert.
+- If motion is missed, lower `MOTION_FRACTION_THRESHOLD` slightly (for example, `0.015`).
+- If it triggers from minor image noise, raise it (for example, `0.04`) or increase `MOTION_CONFIRM_FRAMES`.
+- If normal lighting changes cause alerts, raise `SCENE_CHANGE_THRESHOLD`. If packages are missed in tests, lower it.
+- Adjust `STEPS_TO_PORCH` in small increments. Do not guess a number that could drive the mount into a stop.
+- Retake `data/empty_porch.jpg` if the camera angle or porch layout changes.
+
+## Optional SMS
+
+Console alerts work without an account. Optional text messages use Twilio's Python SDK. Twilio is a hosted service and may charge for phone numbers/messages; it is not an offline/open-source SMS network. Do not commit credentials.
+
+Install the SDK in a virtual environment while allowing access to Raspberry Pi OS's apt-installed camera libraries:
+
+```bash
+sudo apt install -y python3-venv
+python3 -m venv --system-site-packages .venv
+source .venv/bin/activate
+pip install twilio
+```
+
+Set provider credentials in the same terminal, then run the program:
+
+```bash
+export TWILIO_ACCOUNT_SID='your-account-sid'
+export TWILIO_AUTH_TOKEN='your-auth-token'
+export TWILIO_FROM_NUMBER='+15551234567'
+export ALERT_TO_NUMBER='+15557654321'
+python3 -m src.porch_watch
+```
+
+Replace the example phone numbers with numbers supported by your Twilio account. The program sends a text only when the scene-change threshold is reached. The image remains on the Pi; SMS does not attach it.
+
+## Libraries and possible extensions
+
+- **Picamera2/libcamera**: Raspberry Pi's supported camera interface, for camera frames and stills. [Raspberry Pi camera software docs](https://www.raspberrypi.com/documentation/accessories/camera-software.html)
+- **OpenCV (`cv2`)**: resize, grayscale, blur, compare frames, and save images. Used here for simple motion and scene-change detection.
+- **GPIO Zero**: control the four ULN2003 inputs from Python GPIO. The current program drives the 28BYJ-48 with a small half-step sequence.
+- **Twilio Python SDK (optional)**: sends SMS through Twilio's hosted API. The SDK is open source; the messaging service itself is not free or self-hosted.
+- **Object recognition (stretch goal)**: add an on-device TensorFlow Lite or OpenCV DNN object detector after the motion-and-photo pipeline works. A generic pretrained model may label people and some food classes, but generally does not provide a dependable “package” class. Reliable parcel recognition would need a suitable model and test images; treat it as optional.
+
+## Privacy and credentials
+
+- Aim the camera only at the test porch area and avoid capturing neighbors or public space.
+- Do not commit captured images, API credentials, or phone numbers.
+- The program currently stores one baseline and one latest event image locally.

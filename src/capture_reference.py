@@ -1,28 +1,43 @@
-﻿"""Capture the empty-scene reference image using the Raspberry Pi camera."""
+"""Capture the baseline photo while the camera points at the empty porch."""
 
-from pathlib import Path
+import time
 
+import cv2
 from picamera2 import Picamera2
-from gpiozero import Servo
 
-from .settings import REFERENCE_IMAGE, SERVO_GPIO, SERVO_VIEW_VALUE
+from .porch_watch import Stepper
+from .settings import CAMERA_SETTLE_SECONDS, CAMERA_SIZE, REFERENCE_IMAGE, STEPS_TO_PORCH
 
 
 def main() -> None:
-    servo = Servo(SERVO_GPIO)
+    print("Make sure the porch is empty and the camera mount starts at standby position.")
+    answer = input("Move the camera to porch view and capture the empty-scene reference? [y/N] ")
+    if answer.strip().lower() != "y":
+        print("Cancelled.")
+        return
+
     camera = Picamera2()
-    camera.configure(camera.create_still_configuration())
+    camera.configure(camera.create_still_configuration(main={"size": CAMERA_SIZE, "format": "RGB888"}))
+    stepper = Stepper()
     camera.start()
+    time.sleep(2)
+    moved = False
     try:
-        servo.value = SERVO_VIEW_VALUE
-        input("Point the camera at the empty porch, wait for the view to settle, then press Enter...")
-        path = Path(REFERENCE_IMAGE)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        camera.capture_file(str(path))
-        print(f"Saved reference image to {path}")
+        stepper.move(STEPS_TO_PORCH)
+        moved = True
+        time.sleep(CAMERA_SETTLE_SECONDS)
+        frame = camera.capture_array()
+        bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        REFERENCE_IMAGE.parent.mkdir(parents=True, exist_ok=True)
+        if not cv2.imwrite(str(REFERENCE_IMAGE), bgr):
+            raise OSError(f"Could not save reference image: {REFERENCE_IMAGE}")
+        print(f"Saved empty-porch reference: {REFERENCE_IMAGE}")
     finally:
+        if moved:
+            stepper.move(-STEPS_TO_PORCH)
+        stepper.close()
         camera.stop()
-        servo.close()
+        camera.close()
 
 
 if __name__ == "__main__":
