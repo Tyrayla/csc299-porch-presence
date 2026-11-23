@@ -6,10 +6,10 @@ identify a person, package, or food item.
 
 from datetime import datetime
 from pathlib import Path
+import argparse
 import time
 
 import cv2
-from gpiozero import OutputDevice
 from picamera2 import Picamera2
 
 from .notifications import send_alert
@@ -23,50 +23,11 @@ from .settings import (
     MOTION_FRACTION_THRESHOLD,
     MOTION_FRAME_INTERVAL,
     MOTION_PIXEL_THRESHOLD,
-    MOTOR_GPIO_PINS,
     REFERENCE_IMAGE,
     SCENE_CHANGE_THRESHOLD,
-    STEP_DELAY_SECONDS,
-    STEPS_TO_PORCH,
+    get_steps_to_porch,
 )
-
-
-HALF_STEP_SEQUENCE = (
-    (1, 0, 0, 0), (1, 1, 0, 0), (0, 1, 0, 0), (0, 1, 1, 0),
-    (0, 0, 1, 0), (0, 0, 1, 1), (0, 0, 0, 1), (1, 0, 0, 1),
-)
-
-
-class Stepper:
-    """Small half-step controller for a 28BYJ-48 driven by a ULN2003."""
-
-    def __init__(self) -> None:
-        self.coils = [OutputDevice(pin, initial_value=False) for pin in MOTOR_GPIO_PINS]
-        self.index = 0
-
-    def _apply(self) -> None:
-        for coil, value in zip(self.coils, HALF_STEP_SEQUENCE[self.index]):
-            coil.value = bool(value)
-
-    def move(self, steps: int) -> None:
-        direction = 1 if steps >= 0 else -1
-        try:
-            for _ in range(abs(steps)):
-                self.index = (self.index + direction) % len(HALF_STEP_SEQUENCE)
-                self._apply()
-                time.sleep(STEP_DELAY_SECONDS)
-        except KeyboardInterrupt:
-            self.release()
-            raise
-
-    def release(self) -> None:
-        for coil in self.coils:
-            coil.off()
-
-    def close(self) -> None:
-        self.release()
-        for coil in self.coils:
-            coil.close()
+from .stepper import Stepper
 
 
 def grayscale(frame):
@@ -106,11 +67,11 @@ def capture_jpeg(camera: Picamera2, path: Path) -> None:
         raise OSError(f"Could not save image: {path}")
 
 
-def handle_event(camera: Picamera2, stepper: Stepper) -> None:
+def handle_event(camera: Picamera2, stepper: Stepper, steps_to_porch: int) -> None:
     print("Motion confirmed. Moving to porch view...")
     moved = False
     try:
-        stepper.move(STEPS_TO_PORCH)
+        stepper.move(steps_to_porch)
         moved = True
         time.sleep(CAMERA_SETTLE_SECONDS)
         capture_jpeg(camera, CAPTURE_IMAGE)
@@ -131,16 +92,31 @@ def handle_event(camera: Picamera2, stepper: Stepper) -> None:
     finally:
         if moved:
             print("Returning to standby view...")
-            stepper.move(-STEPS_TO_PORCH)
+            stepper.move(-steps_to_porch)
         stepper.release()
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Camera-based porch motion detector")
+    parser.add_argument(
+        "--setup",
+        action="store_true",
+        help="open the interactive stepper angle setup instead of starting motion detection",
+    )
+    args = parser.parse_args()
+    if args.setup:
+        from .stepper_setup import main as setup_stepper
+
+        setup_stepper()
+        return
+
+    steps_to_porch = get_steps_to_porch()
     if not REFERENCE_IMAGE.is_file():
         raise FileNotFoundError(
             f"No empty-porch reference at {REFERENCE_IMAGE}. "
             "Capture one first with: python3 -m src.capture_reference"
         )
+    input("Check that the camera is physically at standby, then press Enter to start (Ctrl+C to cancel): ")
 
     camera = Picamera2()
     config = camera.create_video_configuration(
@@ -152,8 +128,7 @@ def main() -> None:
     camera.start()
     time.sleep(2)
 
-    print("Porch Presence is watching for motion. Press Ctrl+C to stop.")
-    print(f"Motor input BCM pins: {MOTOR_GPIO_PINS}; movement: {STEPS_TO_PORCH} half-steps.")
+    print(f"Porch Presence is watching; saved porch travel is {steps_to_porch} half-steps. Press Ctrl+C to stop.")
     previous = None
     consecutive = 0
     last_event = 0.0
@@ -172,7 +147,7 @@ def main() -> None:
                 if consecutive >= MOTION_CONFIRM_FRAMES and now - last_event >= EVENT_COOLDOWN_SECONDS:
                     last_event = now
                     consecutive = 0
-                    handle_event(camera, stepper)
+                    handle_event(camera, stepper, steps_to_porch)
                     # Re-prime the reference frame after the camera returns.
                     previous = None
                     continue

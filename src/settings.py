@@ -5,6 +5,7 @@ GPIO values are BCM numbers. The team's confirmed physical header pins
 """
 
 from pathlib import Path
+import json
 import os
 
 
@@ -12,11 +13,31 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 REFERENCE_IMAGE = Path(os.environ.get("REFERENCE_IMAGE", DATA_DIR / "empty_porch.jpg"))
 CAPTURE_IMAGE = Path(os.environ.get("CAPTURE_IMAGE", DATA_DIR / "latest_capture.jpg"))
+CALIBRATION_FILE = DATA_DIR / "stepper_calibration.json"
 
 # Keep this order matched to ULN2003 IN1, IN2, IN3, IN4.
 MOTOR_GPIO_PINS = (17, 18, 27, 22)
-STEPS_TO_PORCH = int(os.environ.get("STEPS_TO_PORCH", "256"))
 STEP_DELAY_SECONDS = float(os.environ.get("STEP_DELAY_SECONDS", "0.004"))
+
+
+def get_steps_to_porch() -> int:
+    """Read saved porch travel, unless a temporary shell override is set."""
+    override = os.environ.get("STEPS_TO_PORCH")
+    if override is not None:
+        return int(override)
+    if not CALIBRATION_FILE.is_file():
+        raise RuntimeError(
+            f"No saved stepper calibration at {CALIBRATION_FILE}. "
+            "Run `python3 -m src.stepper_setup` and mark the porch position first."
+        )
+    try:
+        data = json.loads(CALIBRATION_FILE.read_text(encoding="utf-8"))
+        return int(data["porch_steps"])
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError(
+            f"No valid porch_steps value in {CALIBRATION_FILE}. "
+            "Run `python3 -m src.stepper_setup` and mark the porch position."
+        ) from exc
 
 CAMERA_SIZE = (640, 480)
 CAMERA_FPS = 8

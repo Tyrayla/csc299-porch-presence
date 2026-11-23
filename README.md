@@ -58,11 +58,36 @@ The Pi camera must already be detected by Raspberry Pi OS. Check it with:
 rpicam-hello --list-cameras
 ```
 
+## Set and adjust the motor angles
+
+Run the interactive shell setup:
+
+```bash
+python3 -m src.porch_watch --setup
+```
+
+Use these commands at the `stepper>` prompt:
+
+```text
+j 16       jog forward 16 half-steps
+j -16      jog backward 16 half-steps
+s          mark the current position as standby (logical zero)
+j 256      jog toward the porch in small, safe increments
+p          save the current position as the porch view
+b          return to standby
+v          move to the saved porch view
+d          show the current position and saved porch travel
+q          quit and release the coils
+```
+
+Use small jogs at first and keep the mount clear of hard stops. Adjust the porch angle with more positive or negative jogs before pressing `p`. The saved travel value is stored locally in the git-ignored file `data/stepper_calibration.json` and used by the detector and reference capture command. Re-run setup any time the mount angles change.
+
+The motor cannot report its actual angle. When starting after power-off or manually moving the mount, run `--setup`, jog until the camera physically points at standby, press `s`, then use `v` and `b` to confirm the saved path and leave it at standby before quitting. Do not rely on a saved step count to identify the physical position after power was removed.
+
 ## Capture the empty-porch reference
 
-1. Mount the camera and motor safely. Start with the mechanism at the same standby position it will use while watching.
-2. Make sure the porch is empty and lighting is representative.
-3. Run:
+1. Leave the mount at standby and make sure the porch is empty with representative lighting.
+2. Run:
 
 ```bash
 python3 -m src.capture_reference
@@ -82,10 +107,9 @@ Stop with `Ctrl+C`. New event images are saved as `data/latest_capture.jpg` (eac
 
 ## Calibrate
 
-The defaults are conservative starting values, not guaranteed settings. Change them for a temporary session by exporting variables before starting the program:
+The thresholds are starting values, not guaranteed settings. Change them for a temporary session by exporting variables before starting the program:
 
 ```bash
-export STEPS_TO_PORCH=256
 export MOTION_FRACTION_THRESHOLD=0.025
 export SCENE_CHANGE_THRESHOLD=12.0
 python3 -m src.porch_watch
@@ -94,7 +118,7 @@ python3 -m src.porch_watch
 - If motion is missed, lower `MOTION_FRACTION_THRESHOLD` slightly (for example, `0.015`).
 - If it triggers from minor image noise, raise it (for example, `0.04`) or increase `MOTION_CONFIRM_FRAMES`.
 - If normal lighting changes cause alerts, raise `SCENE_CHANGE_THRESHOLD`. If packages are missed in tests, lower it.
-- Adjust `STEPS_TO_PORCH` in small increments. Do not guess a number that could drive the mount into a stop.
+- Override the saved motor travel for one run with `export STEPS_TO_PORCH=256`; adjust the angle more safely through `python3 -m src.porch_watch --setup`.
 - Retake `data/empty_porch.jpg` if the camera angle or porch layout changes.
 
 ## Optional SMS

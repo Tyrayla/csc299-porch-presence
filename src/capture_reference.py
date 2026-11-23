@@ -5,8 +5,8 @@ import time
 import cv2
 from picamera2 import Picamera2
 
-from .porch_watch import Stepper
-from .settings import CAMERA_SETTLE_SECONDS, CAMERA_SIZE, REFERENCE_IMAGE, STEPS_TO_PORCH
+from .settings import CAMERA_SETTLE_SECONDS, CAMERA_SIZE, REFERENCE_IMAGE, get_steps_to_porch
+from .stepper import Stepper
 
 
 def main() -> None:
@@ -16,6 +16,7 @@ def main() -> None:
         print("Cancelled.")
         return
 
+    steps_to_porch = get_steps_to_porch()
     camera = Picamera2()
     camera.configure(camera.create_still_configuration(main={"size": CAMERA_SIZE, "format": "RGB888"}))
     stepper = Stepper()
@@ -23,7 +24,7 @@ def main() -> None:
     time.sleep(2)
     moved = False
     try:
-        stepper.move(STEPS_TO_PORCH)
+        stepper.move(steps_to_porch)
         moved = True
         time.sleep(CAMERA_SETTLE_SECONDS)
         frame = camera.capture_array()
@@ -34,7 +35,7 @@ def main() -> None:
         print(f"Saved empty-porch reference: {REFERENCE_IMAGE}")
     finally:
         if moved:
-            stepper.move(-STEPS_TO_PORCH)
+            stepper.move(-steps_to_porch)
         stepper.close()
         camera.stop()
         camera.close()
