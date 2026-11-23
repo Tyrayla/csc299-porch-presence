@@ -7,7 +7,9 @@ from picamera2 import Picamera2
 
 
 def main() -> None:
-    output_path = Path("data/camera_test.jpg")
+    # Always save under the repository root, even when launched from this folder.
+    repo_root = Path(__file__).resolve().parents[1]
+    output_path = repo_root / "data" / "camera_test.jpg"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     camera = Picamera2()
