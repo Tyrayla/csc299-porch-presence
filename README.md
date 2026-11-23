@@ -105,7 +105,7 @@ From the repository root on the Pi:
 python3 -m src.porch_watch --run
 ```
 
-Stop with `Ctrl+C`. Event images are saved with timestamps in `data/captures/`. By default, the program keeps the newest 25 event photos and removes older ones. Change the limit for a session with `export MAX_SAVED_CAPTURES=50` before starting the monitor. Set it to `0` to keep all captures.
+Stop with `Ctrl+C`. Event images are saved with readable names such as `porch_2026-11-23_15-42-08.jpg` in `data/captures/`. The program prints a message immediately before and after saving each image. By default, it keeps the newest 25 event photos and removes older ones. Change the limit for a session with `export MAX_SAVED_CAPTURES=50` before starting the monitor. Set it to `0` to keep all captures.
 
 ## Calibrate
 

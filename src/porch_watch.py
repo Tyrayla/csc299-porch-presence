@@ -72,12 +72,24 @@ def prune_capture_history() -> None:
     """Keep only the newest configured number of event photos."""
     if MAX_SAVED_CAPTURES < 1:
         return
-    photos = sorted(CAPTURE_DIR.glob("capture_*.jpg"))
+    photos = list(CAPTURE_DIR.glob("porch_*.jpg")) + list(CAPTURE_DIR.glob("capture_*.jpg"))
+    photos.sort(key=lambda photo: photo.stat().st_mtime)
     for old_photo in photos[:-MAX_SAVED_CAPTURES]:
         try:
             old_photo.unlink()
         except OSError as exc:
             print(f"Could not remove old capture {old_photo}: {exc}")
+
+
+def next_capture_path() -> Path:
+    """Build a short, human-readable timestamped photo filename."""
+    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    candidate = CAPTURE_DIR / f"porch_{stamp}.jpg"
+    suffix = 2
+    while candidate.exists():
+        candidate = CAPTURE_DIR / f"porch_{stamp}_{suffix}.jpg"
+        suffix += 1
+    return candidate
 
 
 def handle_event(camera: Picamera2, stepper: Stepper, steps_to_porch: int) -> None:
@@ -88,9 +100,10 @@ def handle_event(camera: Picamera2, stepper: Stepper, steps_to_porch: int) -> No
         moved = True
         time.sleep(CAMERA_SETTLE_SECONDS)
         CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
-        captured_at = datetime.now()
-        capture_path = CAPTURE_DIR / f"capture_{captured_at.strftime('%Y%m%d_%H%M%S_%f')}.jpg"
+        capture_path = next_capture_path()
+        print(f"Capturing porch photo: {capture_path.name}", flush=True)
         capture_jpeg(camera, capture_path)
+        print(f"Photo saved: {capture_path}", flush=True)
         prune_capture_history()
 
         score = scene_difference(REFERENCE_IMAGE, capture_path)
