@@ -28,9 +28,9 @@ def main() -> None:
         moved = True
         time.sleep(CAMERA_SETTLE_SECONDS)
         frame = camera.capture_array()
-        bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         REFERENCE_IMAGE.parent.mkdir(parents=True, exist_ok=True)
-        if not cv2.imwrite(str(REFERENCE_IMAGE), bgr):
+        # Picamera2's RGB888 array is BGR-ordered for OpenCV's image writer.
+        if not cv2.imwrite(str(REFERENCE_IMAGE), frame):
             raise OSError(f"Could not save reference image: {REFERENCE_IMAGE}")
         print(f"Saved empty-porch reference: {REFERENCE_IMAGE}")
     finally:

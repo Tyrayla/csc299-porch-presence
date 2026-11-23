@@ -33,7 +33,8 @@ from .stepper import Stepper
 
 def grayscale(frame):
     """Convert a camera frame to a small, blurred grayscale motion image."""
-    gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+    # Picamera2's RGB888 array is BGR-ordered for OpenCV (see its FORMAT_TABLE).
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     gray = cv2.resize(gray, (320, 240))
     return cv2.GaussianBlur(gray, (5, 5), 0)
 
@@ -62,9 +63,9 @@ def capture_jpeg(camera: Picamera2, path: Path) -> None:
     """Capture the current camera view to a JPEG file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     frame = camera.capture_array("main")
-    # Picamera2's RGB888 array is RGB; OpenCV's JPEG writer expects BGR.
-    bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-    if not cv2.imwrite(str(path), bgr):
+    # For a Picamera2 RGB888 stream, the returned array is already BGR-ordered
+    # for OpenCV's image writer, so don't swap the red and blue channels.
+    if not cv2.imwrite(str(path), frame):
         raise OSError(f"Could not save image: {path}")
 
 
