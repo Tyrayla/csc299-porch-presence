@@ -6,8 +6,8 @@ Camera-based porch activity demo for a Raspberry Pi 4B, Raspberry Pi Camera Rev 
 
 1. Watches the forward-facing camera view for repeated frame-to-frame changes.
 2. When motion is confirmed, moves the stepper a configured number of half-steps to point the camera toward the porch.
-3. Captures a porch image and compares it with a saved empty-porch reference.
-4. Prints an alert and saves the image when the scene-change score exceeds a threshold. If Twilio is configured, it also sends a text.
+3. Compares a porch frame with a saved empty-porch reference.
+4. Saves the image and prints an alert only when the scene-change score reaches the threshold. If Twilio is configured, it also sends a text. Smaller changes are discarded.
 5. Moves the camera back to standby and continues watching.
 
 This first version detects motion and image change. It does **not** identify a person or classify a package/food. Tree movement, lighting changes, and shadows can cause false detections; tune it in the intended location.
@@ -115,7 +115,7 @@ From the repository root on the Pi:
 python3 -m src.porch_watch --run
 ```
 
-Stop with `Ctrl+C`. Every confirmed motion event saves an image with a readable name such as `porch_2026-11-23_15-42-08.jpg` in `data/captures/`, even when the scene-change score is below the alert threshold. The program prints the score and whether it crossed the alert threshold; only above-threshold events produce an alert (and optional SMS). By default, it keeps the newest 25 event photos and removes older ones. Change the limit for a session with `export MAX_SAVED_CAPTURES=50` before starting the monitor. Set it to `0` to keep all captures.
+Stop with `Ctrl+C`. For each confirmed motion event, the program compares an in-memory porch frame with the empty-porch reference. It saves a readable, timestamped image such as `porch_2026-11-23_15-42-08.jpg` in `data/captures/` only when the scene-change score reaches `SCENE_CHANGE_THRESHOLD`; smaller changes are discarded. The terminal reports the score and whether a photo was saved. By default, it keeps the newest 25 event photos and removes older ones. Change the limit for a session with `export MAX_SAVED_CAPTURES=50` before starting the monitor. Set it to `0` to keep all captures.
 
 ## Calibrate
 

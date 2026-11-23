@@ -48,27 +48,15 @@ def motion_fraction(previous, current) -> float:
     return cv2.countNonZero(mask) / mask.size
 
 
-def scene_difference(reference_path: Path, capture_path: Path) -> float:
-    """Mean grayscale difference (0..255) between reference and captured scene."""
+def scene_difference(reference_path: Path, frame) -> float:
+    """Mean grayscale difference (0..255) between reference and a camera frame."""
     reference = cv2.imread(str(reference_path), cv2.IMREAD_GRAYSCALE)
-    capture = cv2.imread(str(capture_path), cv2.IMREAD_GRAYSCALE)
     if reference is None:
         raise FileNotFoundError(f"Reference image is missing or unreadable: {reference_path}")
-    if capture is None:
-        raise FileNotFoundError(f"Captured image is missing or unreadable: {capture_path}")
+    capture = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     if capture.shape != reference.shape:
         capture = cv2.resize(capture, (reference.shape[1], reference.shape[0]))
     return float(cv2.absdiff(reference, capture).mean())
-
-
-def capture_jpeg(camera: Picamera2, path: Path, rotation_degrees: int) -> None:
-    """Capture the current camera view to a JPEG file."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    frame = rotate_frame(camera.capture_array("main"), rotation_degrees)
-    # For a Picamera2 RGB888 stream, the returned array is already BGR-ordered
-    # for OpenCV's image writer, so don't swap the red and blue channels.
-    if not cv2.imwrite(str(path), frame):
-        raise OSError(f"Could not save image: {path}")
 
 
 def prune_capture_history() -> None:
@@ -108,16 +96,17 @@ def handle_event(
         moved = True
         time.sleep(CAMERA_SETTLE_SECONDS)
         CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
-        capture_path = next_capture_path()
-        print(f"Capturing porch photo: {capture_path.name}", flush=True)
-        capture_jpeg(camera, capture_path, rotation_degrees)
-        print(f"Photo saved: {capture_path}", flush=True)
-        prune_capture_history()
-
-        score = scene_difference(REFERENCE_IMAGE, capture_path)
+        print("Checking porch view for a meaningful scene change...", flush=True)
+        frame = rotate_frame(camera.capture_array("main"), rotation_degrees)
+        score = scene_difference(REFERENCE_IMAGE, frame)
         changed = score >= SCENE_CHANGE_THRESHOLD
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if changed:
+            capture_path = next_capture_path()
+            print(f"Saving changed porch photo: {capture_path.name}", flush=True)
+            if not cv2.imwrite(str(capture_path), frame):
+                raise OSError(f"Could not save image: {capture_path}")
+            prune_capture_history()
             message = f"Porch activity detected at {stamp}. Scene-change score: {score:.1f}."
             print(message)
             print(f"Photo saved: {capture_path}")
@@ -125,7 +114,7 @@ def handle_event(
         else:
             print(
                 f"Motion at {stamp}, but the porch scene change ({score:.1f}) is below "
-                f"the alert threshold ({SCENE_CHANGE_THRESHOLD:.1f}). Photo saved: {capture_path}"
+                f"the save threshold ({SCENE_CHANGE_THRESHOLD:.1f}); capture discarded."
             )
     finally:
         if moved:
