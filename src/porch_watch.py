@@ -96,20 +96,7 @@ def handle_event(camera: Picamera2, stepper: Stepper, steps_to_porch: int) -> No
         stepper.release()
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Camera-based porch motion detector")
-    parser.add_argument(
-        "--setup",
-        action="store_true",
-        help="open the interactive stepper angle setup instead of starting motion detection",
-    )
-    args = parser.parse_args()
-    if args.setup:
-        from .stepper_setup import main as setup_stepper
-
-        setup_stepper()
-        return
-
+def run_detector() -> None:
     steps_to_porch = get_steps_to_porch()
     if not REFERENCE_IMAGE.is_file():
         raise FileNotFoundError(
@@ -159,6 +146,58 @@ def main() -> None:
         stepper.close()
         camera.stop()
         camera.close()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Porch Presence: stepper setup, reference capture, and motion monitoring"
+    )
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--setup", action="store_true", help="open stepper angle setup")
+    modes.add_argument("--reference", action="store_true", help="capture an empty-porch reference")
+    modes.add_argument("--run", action="store_true", help="start motion monitoring directly")
+    args = parser.parse_args()
+
+    if args.setup:
+        from .stepper_setup import main as setup_stepper
+
+        setup_stepper()
+        return
+    if args.reference:
+        from .capture_reference import main as capture_reference
+
+        capture_reference()
+        return
+    if args.run:
+        run_detector()
+        return
+
+    # Single interactive entry point for the full project workflow.
+    while True:
+        print("\nPorch Presence")
+        print("1) Calibrate / jog the stepper")
+        print("2) Capture empty-porch reference photo")
+        print("3) Start motion monitoring")
+        print("4) Quit")
+        choice = input("Choose 1-4: ").strip()
+        if choice == "1":
+            from .stepper_setup import main as setup_stepper
+
+            setup_stepper()
+        elif choice == "2":
+            from .capture_reference import main as capture_reference
+
+            capture_reference()
+        elif choice == "3":
+            try:
+                run_detector()
+            except (FileNotFoundError, RuntimeError) as exc:
+                print(f"Cannot start monitoring yet: {exc}")
+        elif choice == "4":
+            print("Goodbye.")
+            break
+        else:
+            print("Enter 1, 2, 3, or 4.")
 
 
 if __name__ == "__main__":

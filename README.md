@@ -60,11 +60,13 @@ rpicam-hello --list-cameras
 
 ## Set and adjust the motor angles
 
-Run the interactive shell setup:
+Launch the combined command-line program:
 
 ```bash
-python3 -m src.porch_watch --setup
+python3 -m src.porch_watch
 ```
+
+Choose stepper calibration from the menu. Direct mode commands are also available: `--setup`, `--reference`, and `--run`.
 
 Use these commands at the `stepper>` prompt:
 
@@ -90,7 +92,7 @@ The motor cannot report its actual angle. When starting after power-off or manua
 2. Run:
 
 ```bash
-python3 -m src.capture_reference
+python3 -m src.porch_watch --reference
 ```
 
 Confirm with `y`. The motor moves to the porch angle, saves `data/empty_porch.jpg`, then returns to standby. Inspect the reference photo before continuing.
@@ -100,7 +102,7 @@ Confirm with `y`. The motor moves to the porch angle, saves `data/empty_porch.jp
 From the repository root on the Pi:
 
 ```bash
-python3 -m src.porch_watch
+python3 -m src.porch_watch --run
 ```
 
 Stop with `Ctrl+C`. New event images are saved as `data/latest_capture.jpg` (each event overwrites the previous image). To save event history, change `CAPTURE_IMAGE` behavior in `src/porch_watch.py` to include a timestamp.
@@ -112,7 +114,7 @@ The thresholds are starting values, not guaranteed settings. Change them for a t
 ```bash
 export MOTION_FRACTION_THRESHOLD=0.025
 export SCENE_CHANGE_THRESHOLD=12.0
-python3 -m src.porch_watch
+python3 -m src.porch_watch --run
 ```
 
 - If motion is missed, lower `MOTION_FRACTION_THRESHOLD` slightly (for example, `0.015`).
@@ -141,7 +143,7 @@ export TWILIO_ACCOUNT_SID='your-account-sid'
 export TWILIO_AUTH_TOKEN='your-auth-token'
 export TWILIO_FROM_NUMBER='+15551234567'
 export ALERT_TO_NUMBER='+15557654321'
-python3 -m src.porch_watch
+python3 -m src.porch_watch --run
 ```
 
 Replace the example phone numbers with numbers supported by your Twilio account. The program sends a text only when the scene-change threshold is reached. The image remains on the Pi; SMS does not attach it.
