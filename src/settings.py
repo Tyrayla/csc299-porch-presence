@@ -11,8 +11,8 @@ import os
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
-REFERENCE_IMAGE = Path(os.environ.get("REFERENCE_IMAGE", DATA_DIR / "empty_porch.jpg"))
 CAPTURE_DIR = Path(os.environ.get("CAPTURE_DIR", DATA_DIR / "captures"))
+REFERENCE_IMAGE = Path(os.environ.get("REFERENCE_IMAGE", CAPTURE_DIR / "empty_porch.jpg"))
 MAX_SAVED_CAPTURES = int(os.environ.get("MAX_SAVED_CAPTURES", "25"))
 CALIBRATION_FILE = DATA_DIR / "stepper_calibration.json"
 

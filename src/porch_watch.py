@@ -132,7 +132,7 @@ def run_detector() -> None:
     if not REFERENCE_IMAGE.is_file():
         raise FileNotFoundError(
             f"No empty-porch reference at {REFERENCE_IMAGE}. "
-            "Capture one first with: python3 -m src.capture_reference"
+            "Capture one first from the menu or with: python3 -m src.porch_watch --reference"
         )
     input("Check that the camera is physically at standby, then press Enter to start (Ctrl+C to cancel): ")
 

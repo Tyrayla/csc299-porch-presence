@@ -95,7 +95,7 @@ The motor cannot report its actual angle. When starting after power-off or manua
 python3 -m src.porch_watch --reference
 ```
 
-Confirm with `y`. The motor moves to the porch angle, saves `data/empty_porch.jpg`, then returns to standby. Inspect the reference photo before continuing.
+Confirm with `y`. The motor moves to the porch angle, saves `data/captures/empty_porch.jpg`, then returns to standby. Inspect the reference photo before continuing.
 
 ## Run the system
 
@@ -121,7 +121,7 @@ python3 -m src.porch_watch --run
 - If it triggers from minor image noise, raise it (for example, `0.04`) or increase `MOTION_CONFIRM_FRAMES`.
 - If normal lighting changes cause alerts, raise `SCENE_CHANGE_THRESHOLD`. If packages are missed in tests, lower it.
 - Override the saved motor travel for one run with `export STEPS_TO_PORCH=256`; adjust the angle more safely through `python3 -m src.porch_watch --setup`.
-- Retake `data/empty_porch.jpg` if the camera angle or porch layout changes.
+- Retake `data/captures/empty_porch.jpg` if the camera angle or porch layout changes.
 
 ## Optional SMS
 
