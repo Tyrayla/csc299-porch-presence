@@ -1,5 +1,7 @@
 # CSC/CSE 299 Porch Presence
 
+**Project presentation:** [Open the Google Slides deck](https://docs.google.com/presentation/d/164rdsKSUhyFKTloYPBu9OW6oHtcC8QoxPWMoMFX-Fpk)
+
 Camera-based porch activity demo for a Raspberry Pi 4B, Raspberry Pi Camera Rev 1.3, and 28BYJ-48 5V stepper motor with ULN2003 driver.
 
 ## What it does
